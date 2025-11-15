@@ -36,9 +36,9 @@ export default function FraseMotivacional() {
   const fraseDoDia = getFraseDoDia();
 
   return (
-    <div className="mb-8 p-4 bg-gradient-to-r from-blue-100 to-indigo-100 border border-blue-200 rounded-lg shadow-sm flex items-center gap-4">
-      <Lightbulb className="w-8 h-8 text-blue-600 flex-shrink-0" />
-      <blockquote className="text-blue-800 italic">
+    <div className="mb-8 p-4 bg-gradient-to-r from-blue-100 to-indigo-100 border border-blue-200 rounded-lg shadow-sm flex items-start gap-4">
+      <Lightbulb className="w-8 h-8 text-blue-600 flex-shrink-0 mt-1" />
+      <blockquote className="text-blue-800 italic text-base leading-relaxed">
         "{fraseDoDia}"
       </blockquote>
     </div>

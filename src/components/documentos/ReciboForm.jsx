@@ -13,8 +13,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { format } from "date-fns";
+import { Loader, User } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
+import { Card, CardContent } from "@/components/ui/card";
 
 export default function ReciboForm({ onSubmit, onCancel, isLoading }) {
+  const [clienteId, setClienteId] = useState('');
   const [parcelaId, setParcelaId] = useState('');
   const [formData, setFormData] = useState({
     valor_pago: 0,
@@ -23,12 +27,37 @@ export default function ReciboForm({ onSubmit, onCancel, isLoading }) {
     referente_a: '',
     observacoes: ''
   });
+  const { toast } = useToast();
+
+  const { data: clientes = [] } = useQuery({
+    queryKey: ['clientes'],
+    queryFn: () => base44.entities.Cliente.list(),
+    initialData: [],
+  });
 
   const { data: parcelas = [] } = useQuery({
-    queryKey: ['parcelas'],
+    queryKey: ['parcelasPagas'],
     queryFn: () => base44.entities.Parcela.filter({ status: 'pago' }),
     initialData: [],
   });
+
+  // Filtrar parcelas do cliente selecionado
+  const parcelasDoCliente = clienteId 
+    ? parcelas.filter(p => p.cliente_id === clienteId)
+    : parcelas;
+
+  const handleClienteSelect = (id) => {
+    setClienteId(id);
+    setParcelaId(''); // Limpa parcela ao trocar cliente
+    
+    const cliente = clientes.find(c => c.id === id);
+    if (cliente) {
+      setFormData({
+        ...formData,
+        referente_a: `Pagamento recebido de ${cliente.name}`
+      });
+    }
+  };
 
   const handleParcelaSelect = (id) => {
     setParcelaId(id);
@@ -36,7 +65,7 @@ export default function ReciboForm({ onSubmit, onCancel, isLoading }) {
     if (parcela) {
       setFormData({
         ...formData,
-        valor_pago: parcela.valor,
+        valor_pago: parcela.valor || 0,
         data_pagamento: parcela.data_pagamento || format(new Date(), 'yyyy-MM-dd'),
         referente_a: `Pagamento da parcela ${parcela.numero_parcela} da venda #${parcela.numero_venda}`
       });
@@ -46,45 +75,105 @@ export default function ReciboForm({ onSubmit, onCancel, isLoading }) {
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    const parcela = parcelas.find(p => p.id === parcelaId);
-    if (!parcela) {
-      alert('Por favor, selecione uma parcela paga');
+    if (!clienteId) {
+      toast({
+        title: "Atenção",
+        description: "Por favor, selecione um cliente",
+        variant: "warning"
+      });
       return;
     }
 
+    if (!formData.valor_pago || parseFloat(formData.valor_pago) <= 0) {
+      toast({
+        title: "Atenção",
+        description: "Por favor, informe o valor pago",
+        variant: "warning"
+      });
+      return;
+    }
+
+    // Buscar dados do cliente
+    const cliente = clientes.find(c => c.id === clienteId);
+
     onSubmit({
-      numero_recibo: `REC${Date.now()}`,
-      venda_id: parcela.venda_id,
-      parcela_id: parcelaId,
-      cliente_id: parcela.cliente_id,
-      cliente_nome: parcela.cliente_nome,
-      cliente_cpf_cnpj: '', // Would need to fetch from cliente
+      numero_recibo: `REC-${Date.now()}`,
+      venda_id: parcelaId ? parcelas.find(p => p.id === parcelaId)?.venda_id : null,
+      parcela_id: parcelaId || null,
+      cliente_id: clienteId,
+      cliente_nome: cliente?.name || '',
+      cliente_cpf_cnpj: cliente?.cpf_cnpj || '',
       data_pagamento: formData.data_pagamento,
-      valor_pago: formData.valor_pago,
+      valor_pago: parseFloat(formData.valor_pago) || 0,
       forma_pagamento: formData.forma_pagamento,
       referente_a: formData.referente_a,
       observacoes: formData.observacoes,
+      status: 'ativo',
     });
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="parcela">Selecionar Parcela Paga *</Label>
-        <Select value={parcelaId} onValueChange={handleParcelaSelect} required>
-          <SelectTrigger>
-            <SelectValue placeholder="Selecione uma parcela" />
-          </SelectTrigger>
-          <SelectContent>
-            {parcelas.map(parcela => (
-              <SelectItem key={parcela.id} value={parcela.id}>
-                {parcela.cliente_nome} - Venda #{parcela.numero_venda} - Parcela {parcela.numero_parcela} - R$ {parcela.valor?.toFixed(2)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+    <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Seleção de Cliente */}
+      <Card className="border-2 border-blue-200 bg-blue-50">
+        <CardContent className="pt-6">
+          <div className="flex items-center gap-2 mb-3">
+            <User className="w-5 h-5 text-blue-600" />
+            <Label className="text-base font-semibold">Selecionar Cliente *</Label>
+          </div>
+          <Select value={clienteId} onValueChange={handleClienteSelect} required>
+            <SelectTrigger>
+              <SelectValue placeholder="Selecione o cliente" />
+            </SelectTrigger>
+            <SelectContent>
+              {clientes.length === 0 ? (
+                <div className="p-4 text-center text-sm text-slate-500">
+                  Nenhum cliente cadastrado
+                </div>
+              ) : (
+                clientes.map(cliente => (
+                  <SelectItem key={cliente.id} value={cliente.id}>
+                    {cliente.name} {cliente.cpf_cnpj ? `- ${cliente.cpf_cnpj}` : ''}
+                  </SelectItem>
+                ))
+              )}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-slate-600 mt-2">
+            Selecione o cliente que realizou o pagamento
+          </p>
+        </CardContent>
+      </Card>
 
+      {/* Seleção de Parcela (Opcional) */}
+      {clienteId && (
+        <div className="space-y-2">
+          <Label htmlFor="parcela">Vincular a Parcela Paga (Opcional)</Label>
+          <Select value={parcelaId} onValueChange={handleParcelaSelect}>
+            <SelectTrigger>
+              <SelectValue placeholder="Selecione uma parcela (opcional)" />
+            </SelectTrigger>
+            <SelectContent>
+              {parcelasDoCliente.length === 0 ? (
+                <div className="p-4 text-center text-sm text-slate-500">
+                  Nenhuma parcela paga encontrada para este cliente
+                </div>
+              ) : (
+                parcelasDoCliente.map(parcela => (
+                  <SelectItem key={parcela.id} value={parcela.id}>
+                    Venda #{parcela.numero_venda} - Parcela {parcela.numero_parcela} - R$ {parcela.valor?.toFixed(2)}
+                  </SelectItem>
+                ))
+              )}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-slate-500">
+            Se o recibo for para uma parcela específica, selecione aqui. Caso contrário, deixe em branco.
+          </p>
+        </div>
+      )}
+
+      {/* Dados do Pagamento */}
       <div className="grid md:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="valor_pago">Valor Pago (R$) *</Label>
@@ -92,9 +181,11 @@ export default function ReciboForm({ onSubmit, onCancel, isLoading }) {
             id="valor_pago"
             type="number"
             step="0.01"
+            min="0.01"
             value={formData.valor_pago}
-            onChange={(e) => setFormData({...formData, valor_pago: parseFloat(e.target.value) || 0})}
+            onChange={(e) => setFormData({...formData, valor_pago: e.target.value})}
             required
+            placeholder="0.00"
           />
         </div>
 
@@ -106,26 +197,45 @@ export default function ReciboForm({ onSubmit, onCancel, isLoading }) {
             value={formData.data_pagamento}
             onChange={(e) => setFormData({...formData, data_pagamento: e.target.value})}
             required
+            max={format(new Date(), 'yyyy-MM-dd')}
           />
         </div>
       </div>
 
       <div className="space-y-2">
         <Label htmlFor="forma_pagamento">Forma de Pagamento</Label>
-        <Input
-          id="forma_pagamento"
-          value={formData.forma_pagamento}
-          onChange={(e) => setFormData({...formData, forma_pagamento: e.target.value})}
-        />
+        <Select 
+          value={formData.forma_pagamento} 
+          onValueChange={(v) => setFormData({...formData, forma_pagamento: v})}
+        >
+          <SelectTrigger id="forma_pagamento">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="Dinheiro">Dinheiro</SelectItem>
+            <SelectItem value="PIX">PIX</SelectItem>
+            <SelectItem value="Cartão de Crédito">Cartão de Crédito</SelectItem>
+            <SelectItem value="Cartão de Débito">Cartão de Débito</SelectItem>
+            <SelectItem value="Transferência Bancária">Transferência Bancária</SelectItem>
+            <SelectItem value="Boleto">Boleto</SelectItem>
+            <SelectItem value="Cheque">Cheque</SelectItem>
+            <SelectItem value="Outro">Outro</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="referente_a">Referente a</Label>
+        <Label htmlFor="referente_a">Referente a *</Label>
         <Input
           id="referente_a"
           value={formData.referente_a}
           onChange={(e) => setFormData({...formData, referente_a: e.target.value})}
+          placeholder="Ex: Pagamento de produto, serviço, parcela..."
+          required
         />
+        <p className="text-xs text-slate-500">
+          Descreva o motivo do pagamento
+        </p>
       </div>
 
       <div className="space-y-2">
@@ -135,15 +245,23 @@ export default function ReciboForm({ onSubmit, onCancel, isLoading }) {
           value={formData.observacoes}
           onChange={(e) => setFormData({...formData, observacoes: e.target.value})}
           rows={3}
+          placeholder="Observações adicionais..."
         />
       </div>
 
-      <div className="flex justify-end gap-3 pt-4">
-        <Button type="button" variant="outline" onClick={onCancel}>
+      <div className="flex justify-end gap-3 pt-4 border-t">
+        <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading}>
           Cancelar
         </Button>
-        <Button type="submit" disabled={isLoading}>
-          {isLoading ? 'Emitindo...' : 'Emitir Recibo'}
+        <Button type="submit" disabled={isLoading || !clienteId}>
+          {isLoading ? (
+            <>
+              <Loader className="w-4 h-4 mr-2 animate-spin" />
+              Emitindo...
+            </>
+          ) : (
+            'Emitir Recibo'
+          )}
         </Button>
       </div>
     </form>

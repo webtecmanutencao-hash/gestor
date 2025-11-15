@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -105,11 +104,11 @@ export default function Suporte() {
 
   return (
     <div className="p-4 md:p-8 bg-gradient-to-br from-slate-50 to-blue-50 min-h-screen">
-      <div className="max-w-7xl mx-auto"> {/* Mantido aqui para centralizar a página de suporte */}
+      <div className="max-w-7xl mx-auto">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
             <Headphones className="w-8 h-8 text-blue-600" />
-            Ajuda e Suporte
+            Suporte e Ajuda
           </h1>
           <p className="text-slate-600 mt-1">Estamos aqui para ajudar você</p>
         </div>

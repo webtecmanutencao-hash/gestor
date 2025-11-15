@@ -5,7 +5,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
-import { FileUp, Loader, AlertCircle } from 'lucide-react';
+import { FileUp, Loader, AlertCircle, FileSpreadsheet, CheckCircle2 } from 'lucide-react';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 export default function ImportarDadosDialog({ open, onOpenChange, entityName, jsonSchema, instructions, onSuccess }) {
     const [file, setFile] = useState(null);
@@ -70,36 +71,120 @@ export default function ImportarDadosDialog({ open, onOpenChange, entityName, js
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent>
+            <DialogContent className="sm:max-w-[700px] max-h-[90vh]">
                 <DialogHeader>
                     <DialogTitle>Importar {entityName}s</DialogTitle>
                     <DialogDescription>
-                        Faça o upload de um arquivo CSV para adicionar múltiplos registros de uma vez.
+                        Faça o upload de um arquivo CSV ou Excel para adicionar múltiplos registros de uma vez.
                     </DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4 py-4">
-                    <div className="p-4 bg-slate-100 rounded-lg border">
-                        <h4 className="font-semibold mb-2">Instruções:</h4>
-                        <p className="text-sm text-slate-600 mb-2">{instructions.description}</p>
-                        <p className="text-sm text-slate-800 font-medium">O arquivo CSV deve conter as seguintes colunas na primeira linha:</p>
-                        <code className="text-sm bg-slate-200 p-2 rounded-md block mt-2 text-slate-900">{instructions.csvHeaders}</code>
-                    </div>
+                <ScrollArea className="max-h-[60vh] pr-4">
+                    <div className="space-y-4 py-4">
+                        <div className="p-4 bg-slate-100 rounded-lg border">
+                            <h4 className="font-semibold mb-3 flex items-center gap-2">
+                                <FileSpreadsheet className="w-5 h-5 text-blue-600" />
+                                Como Preparar seu Arquivo:
+                            </h4>
+                            
+                            <div className="space-y-3">
+                                <div className="p-3 bg-white rounded-md border border-slate-200">
+                                    <p className="text-sm font-medium text-slate-800 mb-2 flex items-center gap-2">
+                                        <CheckCircle2 className="w-4 h-4 text-green-600" />
+                                        Formatos Aceitos:
+                                    </p>
+                                    <ul className="text-sm text-slate-600 list-disc list-inside ml-2 space-y-1">
+                                        <li><strong>Excel</strong> (.xlsx ou .xls) - Recomendado</li>
+                                        <li><strong>CSV</strong> (separado por vírgula)</li>
+                                    </ul>
+                                </div>
 
-                    <Input
-                        type="file"
-                        accept=".csv"
-                        onChange={(e) => setFile(e.target.files[0])}
-                        disabled={importMutation.isPending}
-                    />
+                                <div className="p-3 bg-white rounded-md border border-slate-200">
+                                    <p className="text-sm font-medium text-slate-800 mb-2 flex items-center gap-2">
+                                        <CheckCircle2 className="w-4 h-4 text-green-600" />
+                                        Nomes das Colunas (copie exatamente):
+                                    </p>
+                                    <code className="text-xs bg-slate-800 text-green-400 p-3 rounded-md block mt-2 break-all font-mono">
+                                        {instructions.csvHeaders}
+                                    </code>
+                                    <p className="text-xs text-slate-500 mt-2">
+                                        ⚠️ <strong>Importante:</strong> Use esses nomes exatos na primeira linha da sua planilha
+                                    </p>
+                                </div>
 
-                    {error && (
-                        <div className="p-3 bg-red-100 border border-red-300 text-red-800 rounded-md flex items-center gap-2">
-                           <AlertCircle className="w-5 h-5"/>
-                           <p className="text-sm">{error}</p>
+                                <div className="p-3 bg-green-50 border border-green-200 rounded-md">
+                                    <p className="text-sm font-medium text-green-800 mb-2 flex items-center gap-2">
+                                        <CheckCircle2 className="w-4 h-4 text-green-600" />
+                                        ✅ A ORDEM DAS COLUNAS NÃO IMPORTA!
+                                    </p>
+                                    <p className="text-xs text-green-700">
+                                        O sistema identifica automaticamente cada coluna pelo <strong>nome</strong>, não pela posição. 
+                                        Você pode organizar as colunas em qualquer ordem que preferir!
+                                    </p>
+                                    <div className="mt-2 p-2 bg-white rounded text-xs text-slate-600">
+                                        <p className="font-semibold mb-1">Exemplos válidos:</p>
+                                        <p>✓ name, email, phone, cpf_cnpj, ...</p>
+                                        <p>✓ phone, name, email, cpf_cnpj, ...</p>
+                                        <p>✓ cpf_cnpj, name, phone, email, ...</p>
+                                        <p className="text-green-600 font-medium mt-1">Todos funcionam perfeitamente!</p>
+                                    </div>
+                                </div>
+
+                                <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                                    <p className="text-xs text-blue-800">
+                                        <strong>💡 Passo a Passo no Excel:</strong><br/>
+                                        1. Abra uma nova planilha<br/>
+                                        2. Na primeira linha (linha 1), cole os nomes das colunas acima<br/>
+                                        3. A partir da linha 2, preencha os dados dos seus {entityName.toLowerCase()}s<br/>
+                                        4. Salve e faça o upload aqui
+                                    </p>
+                                </div>
+
+                                <div className="p-3 bg-amber-50 border border-amber-200 rounded-md">
+                                    <p className="text-xs text-amber-800">
+                                        <strong>⚠️ Atenção:</strong> Campos obrigatórios devem ser preenchidos. 
+                                        Campos opcionais podem ficar em branco. Consulte a documentação para saber quais são obrigatórios.
+                                    </p>
+                                </div>
+                            </div>
                         </div>
-                    )}
-                </div>
-                <div className="flex justify-end">
+
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-slate-700">
+                                Selecione o arquivo:
+                            </label>
+                            <Input
+                                type="file"
+                                accept=".csv,.xlsx,.xls"
+                                onChange={(e) => setFile(e.target.files[0])}
+                                disabled={importMutation.isPending}
+                                className="cursor-pointer"
+                            />
+                            {file && (
+                                <p className="text-sm text-slate-600 flex items-center gap-2 p-2 bg-green-50 rounded-md">
+                                    <FileSpreadsheet className="w-4 h-4 text-green-600" />
+                                    Arquivo selecionado: <strong>{file.name}</strong>
+                                </p>
+                            )}
+                        </div>
+
+                        {error && (
+                            <div className="p-3 bg-red-100 border border-red-300 text-red-800 rounded-md flex items-start gap-2">
+                               <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5"/>
+                               <div>
+                                   <p className="text-sm font-semibold mb-1">Erro na Importação:</p>
+                                   <p className="text-xs">{error}</p>
+                                   <p className="text-xs mt-2 text-red-700">
+                                       Verifique se os nomes das colunas estão corretos e se há dados válidos no arquivo.
+                                   </p>
+                               </div>
+                            </div>
+                        )}
+                    </div>
+                </ScrollArea>
+                <div className="flex justify-end gap-3 border-t pt-4">
+                    <Button variant="outline" onClick={() => onOpenChange(false)} disabled={importMutation.isPending}>
+                        Cancelar
+                    </Button>
                     <Button onClick={handleImport} disabled={!file || importMutation.isPending}>
                         {importMutation.isPending ? (
                             <>
@@ -109,7 +194,7 @@ export default function ImportarDadosDialog({ open, onOpenChange, entityName, js
                         ) : (
                             <>
                                 <FileUp className="w-4 h-4 mr-2" />
-                                Processar e Importar
+                                Importar Agora
                             </>
                         )}
                     </Button>

@@ -1,5 +1,4 @@
 
-
 import React, { useEffect, useState, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -17,8 +16,8 @@ import {
   Shield,
   CreditCard,
   Loader,
-  Settings, // Added new icon
-  LayoutGrid // Added new icon
+  Settings,
+  LayoutGrid
 } from "lucide-react";
 import {
   Sidebar,
@@ -45,7 +44,7 @@ import AdminCockpit from "@/components/admin/AdminCockpit";
 
 const navigationItems = [
   { title: "Painel Principal", url: createPageUrl("Dashboard"), icon: LayoutDashboard },
-  { title: "PDV Geral", url: createPageUrl("Geral"), icon: LayoutGrid }, // Added new navigation item
+  { title: "PDV Geral", url: createPageUrl("Geral"), icon: LayoutGrid },
   { title: "Clientes", url: createPageUrl("Clientes"), icon: Users },
   { title: "Vendas", url: createPageUrl("Vendas"), icon: ShoppingCart },
   { title: "Cobranças", url: createPageUrl("Cobrancas"), icon: DollarSign },
@@ -54,8 +53,8 @@ const navigationItems = [
   { title: "Relatórios", url: createPageUrl("Relatorios"), icon: FileText },
   { title: "Administração", url: createPageUrl("Administracao"), icon: Shield, adminOnly: true },
   { title: "WhatsApp IA", url: createPageUrl("WhatsAppIA"), icon: MessageSquare },
-  { title: "Configurações", url: createPageUrl("ConfiguracoesEmpresa"), icon: Settings }, // Added new navigation item
-  { title: "Ajuda e Suporte", url: createPageUrl("Suporte"), icon: Headphones },
+  { title: "Configurações", url: createPageUrl("ConfiguracoesEmpresa"), icon: Settings },
+  { title: "Suporte", url: createPageUrl("Suporte"), icon: Headphones },
   { title: "Mensalidade de Uso", url: createPageUrl("Mensalidade"), icon: CreditCard },
 ];
 
@@ -67,8 +66,77 @@ export default function Layout({ children, currentPageName }) {
 
   const isAdmin = user?.role === 'admin';
   const [notifications, setNotifications] = useState([]);
-  const [hasNewNotifications, setHasNewNotifications] = useState(false); // NOVO ESTADO
+  const [hasNewNotifications, setHasNewNotifications] = useState(false);
   const prevNotifCount = useRef(0);
+
+  // NOVO: Verificar status de pagamento do mês atual
+  const { data: pagamentoAtual } = useQuery({
+    queryKey: ['pagamentoMesAtual', user?.id],
+    queryFn: async () => {
+      if (!user?.id || user?.role === 'admin') return null;
+      
+      const hoje = new Date();
+      const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+      const ano = hoje.getFullYear();
+      const mesRef = `${mes}/${ano}`;
+      
+      const pagamentos = await base44.entities.Pagamento.filter({
+        empresa_id: user.id,
+        mes_referencia: mesRef
+      });
+      
+      return pagamentos[0] || null;
+    },
+    enabled: !!user && user?.role !== 'admin',
+    refetchInterval: 60000, // Atualiza a cada minuto
+  });
+
+  // Calcular status de pagamento
+  const getStatusPagamento = () => {
+    if (!user || user.role === 'admin') return null;
+    
+    const hoje = new Date();
+    const diaAtual = hoje.getDate();
+    const ultimoDiaMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).getDate();
+    
+    // Se já pagou ou está aprovado/aguardando
+    if (pagamentoAtual && (pagamentoAtual.status === 'aprovado' || pagamentoAtual.status === 'aguardando_verificacao')) {
+      return null; // Não mostra alerta
+    }
+    
+    // Últimos 5 dias do mês - se aproximando do vencimento (e ainda não pagou)
+    if (diaAtual >= ultimoDiaMes - 4) {
+      return {
+        tipo: 'aproximando',
+        mensagem: 'Pagamento vence dia 1º',
+        cor: 'bg-yellow-500'
+      };
+    }
+    
+    // Entre dia 1 e 5 - período de carência (e ainda não pagou)
+    if (diaAtual >= 1 && diaAtual <= 5) {
+      return {
+        tipo: 'carencia',
+        mensagem: `Carência até dia 5 (${5 - diaAtual + 1} dias)`,
+        submensagem: 'Após dia 5: bloqueio automático',
+        cor: 'bg-orange-500'
+      };
+    }
+    
+    // Depois do dia 5 - atrasado (e ainda não pagou)
+    if (diaAtual > 5) {
+      return {
+        tipo: 'atrasado',
+        mensagem: 'Pagamento em atraso',
+        submensagem: 'Sistema será bloqueado',
+        cor: 'bg-red-500'
+      };
+    }
+    
+    return null;
+  };
+
+  const alertaPagamento = getStatusPagamento();
 
   // Busca de dados para notificações (APENAS PARA ADMINS)
   const { data: notificationData } = useQuery({
@@ -157,7 +225,27 @@ export default function Layout({ children, currentPageName }) {
                 <p className="text-xs text-slate-500">Sistema de Gestão</p>
               </div>
             </div>
+            
+            {/* ALERTA DE PAGAMENTO */}
+            {alertaPagamento && (
+              <Link to={createPageUrl("Mensalidade")} className="mx-3 mt-3">
+                <div className={cn(
+                  "p-3 rounded-lg flex items-center gap-2 cursor-pointer hover:opacity-90 transition-opacity",
+                  alertaPagamento.cor
+                )}>
+                  <CreditCard className="w-4 h-4 text-white" />
+                  <div className="flex-1">
+                    <p className="text-white text-xs font-semibold">{alertaPagamento.mensagem}</p>
+                    {alertaPagamento.submensagem && (
+                      <p className="text-white text-xs opacity-90 font-bold">{alertaPagamento.submensagem}</p>
+                    )}
+                    <p className="text-white text-xs opacity-90 mt-1">Clique para pagar</p>
+                  </div>
+                </div>
+              </Link>
+            )}
           </SidebarHeader>
+          
           <SidebarContent>
              <SidebarMenu>
                <SidebarGroup>
@@ -176,7 +264,7 @@ export default function Layout({ children, currentPageName }) {
                           )}
                         >
                           <item.icon className="w-5 h-5" />
-                          {item.title}
+                          <span className="truncate">{item.title}</span>
                          </Link>
                       </SidebarMenuItem>
                     );
@@ -224,4 +312,3 @@ export default function Layout({ children, currentPageName }) {
     </SidebarProvider>
   );
 }
-
